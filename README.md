@@ -47,7 +47,12 @@ for an agent that needs to choose correctly and not break things.
 - `download_thumbnail` — pull an entity's thumbnail/filmstrip to disk
 - `upload` — attach a file / set a thumbnail / fill a media field
 
-Every write tool takes `dry_run: bool = false`.
+Every write tool takes `dry_run` (default `false`). `create` / `update` / `delete` support **two preview
+levels**: `dry_run="plan"` (client-side echo, no server contact) and **`dry_run="preflight"`** — a *real*
+dry run that resolves every referenced entity against live data, validates `sg_status_list` values against
+the live schema, returns a before→after diff for updates, and a `verdict` of `ok`/`would_fail` — **without
+writing**. Set `MCP_PLAN_LOG=/path.jsonl` to capture each plan/preflight as a reviewable plan file. (Other
+write tools take `dry_run` as a plain boolean.)
 
 ## Install
 ```bash

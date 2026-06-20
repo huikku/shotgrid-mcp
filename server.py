@@ -13,7 +13,7 @@ Config (env or MCP client config):
 
 Run:  python3 server.py        (stdio transport, for Claude Desktop / Cursor / Claude Code)
 """
-import os, datetime, tempfile
+import os, datetime, tempfile, json
 import requests
 import shotgun_api3
 from fastmcp import FastMCP
@@ -58,6 +58,71 @@ def _clean(obj):
     return obj
 
 
+# ---- dry-run modes: plan (client-side echo) · preflight (real reads, validate, no write) --------
+def _mode(dry_run):
+    if isinstance(dry_run, str):
+        d = dry_run.lower()
+        return "preflight" if d == "preflight" else ("live" if d in ("", "false", "no") else "plan")
+    return "plan" if dry_run else "live"
+
+
+def _planlog(entry):
+    entry = {"ts": datetime.datetime.now().isoformat(timespec="seconds"), **entry}
+    path = os.environ.get("MCP_PLAN_LOG")
+    if path:
+        try:
+            with open(path, "a") as f:
+                f.write(json.dumps(_clean(entry)) + "\n")
+        except Exception:
+            pass
+    return _clean(entry)
+
+
+def _resolve_refs(data):
+    """Preflight: read every {type,id} entity link in `data` (incl. multi-entity lists). -> (reads, conflicts)."""
+    reads, conflicts = {}, []
+
+    def chk(label, ref):
+        et, _id = ref.get("type"), ref.get("id")
+        try:
+            r = sg().find_one(et, [["id", "is", _id]], ["code", "name"]) if et else None
+            reads[label] = {"found": bool(r), "name": (r or {}).get("code") or (r or {}).get("name")}
+            if not r:
+                conflicts.append("%s %s %s not found" % (label, et, _id))
+        except Exception as e:
+            reads[label] = {"found": False, "error": repr(e)[:80]}
+            conflicts.append("%s could not be resolved" % label)
+
+    for k, v in (data or {}).items():
+        if isinstance(v, dict) and "id" in v and "type" in v:
+            chk(k, v)
+        elif isinstance(v, list):
+            for i, item in enumerate(v):
+                if isinstance(item, dict) and "id" in item and "type" in item:
+                    chk("%s[%d]" % (k, i), item)
+    return reads, conflicts
+
+
+def _validate_statuses(entity_type, data):
+    """Preflight: for any status_list field in `data`, validate the value against the live schema."""
+    statusy = [k for k in (data or {}) if "status" in k.lower()]
+    if not statusy:
+        return {}, []
+    checks, conflicts = {}, []
+    try:
+        schema = sg().schema_field_read(entity_type)
+    except Exception:
+        return {}, []
+    for k in statusy:
+        vv = (((schema.get(k) or {}).get("properties") or {}).get("valid_values") or {}).get("value")
+        if vv is not None:
+            ok = data[k] in vv
+            checks[k] = {"value": data[k], "valid": ok}
+            if not ok:
+                conflicts.append("%s %r not in valid_values %s" % (k, data[k], vv))
+    return checks, conflicts
+
+
 # =====================================================================================
 #  GENERIC POWER TOOLS  (one CRUD family — full API reach across every entity type)
 # =====================================================================================
@@ -80,33 +145,72 @@ def find_one(entity_type: str, filters: list | None = None, fields: list[str] | 
     return _clean(sg().find_one(entity_type, filters or [], fields or []))
 
 
-def create(entity_type: str, data: dict, dry_run: bool = False) -> dict:
+def create(entity_type: str, data: dict, dry_run=False) -> dict:
     """Create an entity. `data` maps fields to values; entity links are {"type":"Project","id":85}.
     e.g. create("Shot", {"project":{"type":"Project","id":85}, "code":"sh010"}).
-    Set `dry_run=true` to preview the write without committing."""
-    if dry_run:
-        return {"dry_run": True, "would": "create", "entity_type": entity_type, "data": _clean(data)}
+    `dry_run`: false = write · "plan"/true = echo the intent (no server contact) · "preflight" = read every
+    referenced entity + validate any status against the live schema, report whether it would land (no write).
+    Set MCP_PLAN_LOG to append each plan/preflight to a JSONL plan file."""
+    mode = _mode(dry_run)
+    if mode == "plan":
+        return _planlog({"dry_run": "plan", "would": "create", "entity_type": entity_type, "input": data})
+    if mode == "preflight":
+        reads, conflicts = _resolve_refs(data)
+        schecks, sconf = _validate_statuses(entity_type, data)
+        return _planlog({"dry_run": "preflight", "would": "create", "entity_type": entity_type, "input": data,
+                         "reads": reads, "status_checks": schecks, "conflicts": conflicts + sconf,
+                         "verdict": "would_fail" if (conflicts + sconf) else "ok"})
     return _clean(sg().create(entity_type, data))
 
 
 def update(entity_type: str, entity_id: int, data: dict,
-           multi_entity_update_modes: dict | None = None, dry_run: bool = False) -> dict:
+           multi_entity_update_modes: dict | None = None, dry_run=False) -> dict:
     """Update an entity by id. `data` = fields to set. `multi_entity_update_modes` optionally maps a
     multi-entity field name to "add" / "remove" / "set" (default replaces).
-    Set `dry_run=true` to preview without committing."""
-    if dry_run:
-        return {"dry_run": True, "would": "update", "entity_type": entity_type,
-                "entity_id": entity_id, "data": _clean(data)}
+    `dry_run`: false = write · "plan"/true = echo · "preflight" = read the current record and return a real
+    before→after diff, resolve referenced entities, validate any status (no write). Logged to MCP_PLAN_LOG."""
+    mode = _mode(dry_run)
+    if mode == "plan":
+        return _planlog({"dry_run": "plan", "would": "update", "entity_type": entity_type,
+                         "entity_id": entity_id, "input": data})
+    if mode == "preflight":
+        cur = None
+        try:
+            cur = sg().find_one(entity_type, [["id", "is", entity_id]], list((data or {}).keys()))
+        except Exception:
+            pass
+        reads, conflicts = _resolve_refs(data)
+        schecks, sconf = _validate_statuses(entity_type, data)
+        if not cur:
+            conflicts.append("%s %s not found" % (entity_type, entity_id))
+        change = {k: {"from": (cur or {}).get(k), "to": v} for k, v in (data or {}).items()}
+        return _planlog({"dry_run": "preflight", "would": "update", "entity_type": entity_type,
+                         "entity_id": entity_id, "exists": bool(cur), "change": change, "reads": reads,
+                         "status_checks": schecks, "conflicts": conflicts + sconf,
+                         "verdict": "would_fail" if (conflicts + sconf) else "ok"})
     return _clean(sg().update(entity_type, entity_id, data,
                               multi_entity_update_modes=multi_entity_update_modes))
 
 
-def delete(entity_type: str, entity_id: int, dry_run: bool = False) -> dict:
+def delete(entity_type: str, entity_id: int, dry_run=False) -> dict:
     """Delete (retire) an entity by id. In ShotGrid this is a **reversible soft-delete** — use `revive`
-    to undo. Set `dry_run=true` to preview without committing."""
-    if dry_run:
-        return {"dry_run": True, "would": "delete (retire)",
-                "entity_type": entity_type, "entity_id": entity_id}
+    to undo. `dry_run`: false = retire · "plan"/true = echo · "preflight" = confirm the target exists
+    (live read) and show what would be retired (no write). Logged to MCP_PLAN_LOG."""
+    mode = _mode(dry_run)
+    if mode == "plan":
+        return _planlog({"dry_run": "plan", "would": "delete (retire)",
+                         "entity_type": entity_type, "entity_id": entity_id})
+    if mode == "preflight":
+        cur = None
+        try:
+            cur = sg().find_one(entity_type, [["id", "is", entity_id]], ["code", "name"])
+        except Exception:
+            pass
+        conflicts = [] if cur else ["%s %s not found" % (entity_type, entity_id)]
+        return _planlog({"dry_run": "preflight", "would": "delete (retire)", "entity_type": entity_type,
+                         "entity_id": entity_id, "exists": bool(cur),
+                         "name": (cur or {}).get("code") or (cur or {}).get("name"),
+                         "conflicts": conflicts, "verdict": "would_fail" if conflicts else "ok"})
     ok = sg().delete(entity_type, entity_id)
     return {"ok": bool(ok), "retired": {"type": entity_type, "id": entity_id}}
 
