@@ -107,6 +107,16 @@ summarize("Task", [["project","is",{"type":"Project","id":85}]],
 create("Shot", {"project":{"type":"Project","id":85}, "code":"sh010"}, dry_run=True)
 ```
 
+## Part of a tracker-MCP trio — migrate projects between platforms
+This is one of **three sibling tracker MCPs**, each with the same shape (generic CRUD + schema + typed
+convenience, with a `dry_run` gate): [`shotgrid-mcp`](https://github.com/huikku/shotgrid-mcp) (this repo),
+[`ftrack-mcp`](https://github.com/huikku/ftrack-mcp), and
+[`kitsu-mcp`](https://github.com/huikku/kitsu-mcp). They all speak the same production model
+(Project → Sequence/Asset → Shot → Task → Version/Status), so **an agent with two of them loaded can migrate
+a project from one tracker to another** — read the structure from the source MCP, recreate it via the
+target's `create`/`new_*` tools, no bespoke migration script. This trio grew out of copying one project
+across all three platforms.
+
 ## Credits
 - **[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server)** (MIT) — the original
   ShotGrid MCP this builds on. The design and much of the API ergonomics here are downstream of that work;
