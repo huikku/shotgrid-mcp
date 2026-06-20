@@ -138,3 +138,7 @@ ftrack; statuses must be mapped; media/notes/custom fields don't carry yet).
 
 MIT licensed. If the extra breadth of the original suits you better, use it — this is just the leaner,
 agent-hardened cut.
+
+---
+
+Built by **John Huikku** · [alienrobot.com](https://alienrobot.com)
