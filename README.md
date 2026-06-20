@@ -1,5 +1,7 @@
 # ShotGrid MCP server (lean)
 
+![Connect any AI agent to ShotGrid](assets/hero.png)
+
 A **Model Context Protocol** server that gives LLM agents (Claude Desktop, Claude Code, Cursor, …) full
 access to the **ShotGrid / Autodesk Flow Production Tracking** API through a **small, curated, agent-first
 tool surface**. A leaner, write-safe repackaging of
