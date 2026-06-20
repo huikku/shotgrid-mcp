@@ -117,6 +117,10 @@ a project from one tracker to another** — read the structure from the source M
 target's `create`/`new_*` tools, no bespoke migration script. This trio grew out of copying one project
 across all three platforms.
 
+📊 **See [`COMPARISON.md`](COMPARISON.md)** for a side-by-side of the three trackers (data model, status
+vocabularies) and the **migration incompatibilities** to know about (e.g. casting can't round-trip through
+ftrack; statuses must be mapped; media/notes/custom fields don't carry yet).
+
 ## Credits
 - **[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server)** (MIT) — the original
   ShotGrid MCP this builds on. The design and much of the API ergonomics here are downstream of that work;
