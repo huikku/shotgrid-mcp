@@ -129,6 +129,9 @@ across all three platforms.
 vocabularies) and the **migration incompatibilities** to know about (e.g. casting can't round-trip through
 ftrack; statuses must be mapped; media/notes/custom fields don't carry yet).
 
+🧪 **See [`TESTING.md`](TESTING.md)** for how these servers are validated — live round-trip tests, two-level
+dry-run checks, and the cross-tracker migration matrix (including what is *not* yet covered, stated plainly).
+
 ## Credits
 - **[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server)** (MIT) — the original
   ShotGrid MCP this builds on. The design and much of the API ergonomics here are downstream of that work;
