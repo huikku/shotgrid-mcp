@@ -111,8 +111,10 @@ def delete(entity_type: str, entity_id: int, dry_run: bool = False) -> dict:
     return {"ok": bool(ok), "retired": {"type": entity_type, "id": entity_id}}
 
 
-def revive(entity_type: str, entity_id: int) -> dict:
-    """Revive (un-retire) a previously deleted entity."""
+def revive(entity_type: str, entity_id: int, dry_run: bool = False) -> dict:
+    """Revive (un-retire) a previously deleted entity. `dry_run=true` previews without committing."""
+    if dry_run:
+        return {"dry_run": True, "would": "revive", "entity_type": entity_type, "entity_id": entity_id}
     ok = sg().revive(entity_type, entity_id)
     return {"ok": bool(ok), "revived": {"type": entity_type, "id": entity_id}}
 
@@ -194,9 +196,14 @@ def download_thumbnail(entity_type: str, entity_id: int, field: str = "image",
     return {"ok": True, "path": path, "bytes": len(data), "url": url}
 
 
-def upload(entity_type: str, entity_id: int, path: str, field_name: str | None = None) -> dict:
+def upload(entity_type: str, entity_id: int, path: str, field_name: str | None = None,
+           dry_run: bool = False) -> dict:
     """Upload a file to an entity. field_name=None attaches it; field_name="image" sets the thumbnail;
-    or target a File/Link field (e.g. "sg_uploaded_movie" on a Version). Returns the Attachment id."""
+    or target a File/Link field (e.g. "sg_uploaded_movie" on a Version). Returns the Attachment id.
+    `dry_run=true` previews without uploading."""
+    if dry_run:
+        return {"dry_run": True, "would": "upload", "entity_type": entity_type,
+                "entity_id": entity_id, "field_name": field_name, "path": path}
     aid = sg().upload(entity_type, entity_id, path, field_name=field_name)
     return {"ok": True, "attachment_id": aid, "entity": {"type": entity_type, "id": entity_id}}
 
