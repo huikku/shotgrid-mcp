@@ -1,25 +1,33 @@
 # ShotGrid MCP server (lean)
 
 A **Model Context Protocol** server that gives LLM agents (Claude Desktop, Claude Code, Cursor, …) full
-access to the **ShotGrid / Autodesk Flow Production Tracking** API — through a **small, curated, agent-first
-tool surface** instead of a sprawling one.
+access to the **ShotGrid / Autodesk Flow Production Tracking** API through a **small, curated, agent-first
+tool surface**. A leaner, write-safe repackaging of
+[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server) (credit below).
 
 > ShotGrid is schema-driven, so a handful of **generic CRUD + query tools reach every entity type**. This
 > server leans into that: **15 tools, one CRUD family, a `dry_run` safety gate on every write.**
 
-## Why this exists — what we changed vs the existing server
-There's already a capable community server (`loonghao/shotgrid-mcp-server`, MIT). We used it heavily, liked
-the engineering, but hit three things that hurt an **autonomous agent** specifically. This server is a
-deliberate, leaner take that fixes them:
+## Built on the shoulders of `loonghao/shotgrid-mcp-server`
+This project owes a real debt to **[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server)**
+(MIT) — the first solid, well-engineered ShotGrid MCP. We used it heavily and it works: connection pooling,
+a schema cache, an `error_handler`, and `mockgun`-based tests are all things it gets right, and it proved the
+concept. **Go star it.** This server isn't a replacement so much as a **leaner, hardened repackaging** of the
+same idea, tuned specifically for **autonomous agents** — where a tighter, safer tool surface matters more
+than breadth.
 
-| Problem in the larger server | What we added here |
+### What we changed to make it more solid
+Three changes, each aimed at making an agent's life safer and more predictable:
+
+| In the original | What we did here — and why it's more solid |
 |---|---|
-| **~60 tools with two overlapping CRUD families** (`sg_find`/`find_one_entity`, `sg_create`/`create_entity`, `sg_batch`/`batch_operations`) **plus `*_tool` alias dupes** — bloats the prompt and makes tool selection ambiguous. | **One** CRUD family: `find` / `find_one` / `create` / `update` / `delete` / `revive` / `batch`. No aliases, no duplicates. **15 tools total.** |
-| **No write-safety gate** — `delete`/`create`/`update` commit immediately; the only guard is docstring text. | A **`dry_run` parameter on every write** (`create`, `update`, `delete`, `batch`). `dry_run=true` returns exactly what *would* happen and commits nothing. `delete` is also documented as a **reversible retire** (undo with `revive`). |
-| **Studio-specific tools baked into the core** (`find_vendor_users`, `find_vendor_versions`, `create_vendor_playlist`) + thin canned-filter wrappers (`find_recent_playlists`, `find_project_playlists`, …) that assume one shop's schema. | **Dropped.** Anything those did is one `find`/`create` call with explicit filters — no hidden site assumptions. |
+| **~60 tools across two overlapping CRUD families** (`sg_find`/`find_one_entity`, `sg_create`/`create_entity`, `sg_batch`/`batch_operations`) **plus `*_tool` alias duplicates**. | **Consolidated to one CRUD family** — `find` / `find_one` / `create` / `update` / `delete` / `revive` / `batch`, **15 tools total**. Fewer, unambiguous tools = the model picks the right one every time and spends far less context deciding. |
+| **Writes commit immediately**; the only guard against an accidental `delete`/`update` is docstring text. | **A `dry_run` flag on every write** (`create`, `update`, `delete`, `batch`). `dry_run=true` returns exactly what *would* happen and commits nothing — so an agent (or a human) can preview before pulling the trigger. `delete` is also a **reversible retire** (undo with `revive`), documented as such. |
+| **Studio-specific tools in the core** (`find_vendor_users`, `find_vendor_versions`, `create_vendor_playlist`) + thin canned-filter wrappers (`find_recent_playlists`, `find_project_playlists`, …) that assume one shop's schema/conventions. | **Removed** — anything they did is one `find`/`create` with explicit filters. No hidden assumptions about a site's status lists or naming, so it behaves identically on any ShotGrid instance. |
 
-Net: same 100% reach (it's generic over the schema), a fraction of the tool count, and **safe by default**
-for agents that write.
+Net: **same 100% reach** (both are generic over ShotGrid's schema), a fraction of the tool count, and
+**safe-by-default writes**. Where the original optimizes for human convenience and breadth, this one optimizes
+for an agent that needs to choose correctly and not break things.
 
 ## The 15 tools
 **Generic power tools (full reach over every entity type):**
@@ -100,6 +108,11 @@ create("Shot", {"project":{"type":"Project","id":85}, "code":"sh010"}, dry_run=T
 ```
 
 ## Credits
-Built on Autodesk's [`shotgun_api3`](https://github.com/shotgunsoftware/python-api). Inspired by — and a
-leaner alternative to — [`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server).
-Companion to [`ftrack-mcp`](https://github.com/huikku/ftrack-mcp). MIT licensed.
+- **[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server)** (MIT) — the original
+  ShotGrid MCP this builds on. The design and much of the API ergonomics here are downstream of that work;
+  please credit and star it.
+- Autodesk's **[`shotgun_api3`](https://github.com/shotgunsoftware/python-api)** — the underlying Python API.
+- Companion to our **[`ftrack-mcp`](https://github.com/huikku/ftrack-mcp)**.
+
+MIT licensed. If the extra breadth of the original suits you better, use it — this is just the leaner,
+agent-hardened cut.
