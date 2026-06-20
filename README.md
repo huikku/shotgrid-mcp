@@ -6,7 +6,7 @@ tool surface**. A leaner, write-safe repackaging of
 [`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server) (credit below).
 
 > ShotGrid is schema-driven, so a handful of **generic CRUD + query tools reach every entity type**. This
-> server leans into that: **15 tools, one CRUD family, a `dry_run` safety gate on every write.**
+> server leans into that: **16 tools, one CRUD family, a `dry_run` safety gate on every write.**
 
 ## Built on the shoulders of `loonghao/shotgrid-mcp-server`
 This project owes a real debt to **[`loonghao/shotgrid-mcp-server`](https://github.com/loonghao/shotgrid-mcp-server)**
@@ -21,7 +21,7 @@ Three changes, each aimed at making an agent's life safer and more predictable:
 
 | In the original | What we did here — and why it's more solid |
 |---|---|
-| **~60 tools across two overlapping CRUD families** (`sg_find`/`find_one_entity`, `sg_create`/`create_entity`, `sg_batch`/`batch_operations`) **plus `*_tool` alias duplicates**. | **Consolidated to one CRUD family** — `find` / `find_one` / `create` / `update` / `delete` / `revive` / `batch`, **15 tools total**. Fewer, unambiguous tools = the model picks the right one every time and spends far less context deciding. |
+| **~60 tools across two overlapping CRUD families** (`sg_find`/`find_one_entity`, `sg_create`/`create_entity`, `sg_batch`/`batch_operations`) **plus `*_tool` alias duplicates**. | **Consolidated to one CRUD family** — `find` / `find_one` / `create` / `update` / `delete` / `revive` / `batch`, **16 tools total**. Fewer, unambiguous tools = the model picks the right one every time and spends far less context deciding. |
 | **Writes commit immediately**; the only guard against an accidental `delete`/`update` is docstring text. | **A `dry_run` flag on every write** (`create`, `update`, `delete`, `batch`). `dry_run=true` returns exactly what *would* happen and commits nothing — so an agent (or a human) can preview before pulling the trigger. `delete` is also a **reversible retire** (undo with `revive`), documented as such. |
 | **Studio-specific tools in the core** (`find_vendor_users`, `find_vendor_versions`, `create_vendor_playlist`) + thin canned-filter wrappers (`find_recent_playlists`, `find_project_playlists`, …) that assume one shop's schema/conventions. | **Removed** — anything they did is one `find`/`create` with explicit filters. No hidden assumptions about a site's status lists or naming, so it behaves identically on any ShotGrid instance. |
 
@@ -29,7 +29,7 @@ Net: **same 100% reach** (both are generic over ShotGrid's schema), a fraction o
 **safe-by-default writes**. Where the original optimizes for human convenience and breadth, this one optimizes
 for an agent that needs to choose correctly and not break things.
 
-## The 15 tools
+## The 16 tools
 **Generic power tools (full reach over every entity type):**
 - `find` · `find_one` — query with ShotGrid filters + field projections
 - `create` · `update` · `delete` · `revive` — single-entity writes (`delete` = reversible retire)
@@ -44,6 +44,7 @@ for an agent that needs to choose correctly and not break things.
 **High-value helpers (not just a canned filter):**
 - `whoami` — connection + server info
 - `find_projects` — common entry point
+- `project_summary` — a **normalized** project snapshot (counts + per-shot cast/status/thumbnail, canonical statuses) for cross-tracker verify/diff
 - `download_thumbnail` — pull an entity's thumbnail/filmstrip to disk
 - `upload` — attach a file / set a thumbnail / fill a media field
 

@@ -284,6 +284,31 @@ def find_projects(include_archived: bool = False, fields: list[str] | None = Non
                             fields or ["name", "sg_status", "archived", "sg_description"]))
 
 
+# canonical status buckets — the shared vocabulary for cross-tracker diff/verify
+_CANON = {"wtg": "todo", "ip": "wip", "fin": "done", "rev": "review", "apr": "approved"}
+
+
+def project_summary(project_id: int) -> dict:
+    """A **normalized snapshot** of a project for cross-tracker verify/diff: entity counts plus, per shot,
+    its cast, thumbnail flag, and per-task **canonical** status (todo/wip/done/review/approved). Every
+    tracker MCP emits the same shape, so two summaries can be diffed directly. Read-only."""
+    F = [["project", "is", {"type": "Project", "id": project_id}]]
+    proj = sg().find_one("Project", [["id", "is", project_id]], ["name"])
+    seqs = sg().find("Sequence", F, ["code"], limit=0)
+    assets = sg().find("Asset", F, ["code", "image"], limit=0)
+    shots = sg().find("Shot", F, ["code", "image", "assets"], limit=0)
+    tasks = sg().find("Task", F, ["content", "sg_status_list", "entity"], limit=0)
+    sm = {s["code"]: {"cast": sorted([a["name"] for a in (s.get("assets") or [])]),
+                      "thumbnail": bool(s.get("image")), "tasks": {}} for s in shots}
+    for t in tasks:
+        e = t.get("entity") or {}
+        if e.get("type") == "Shot" and e.get("name") in sm:
+            sm[e["name"]]["tasks"][t["content"]] = _CANON.get(t.get("sg_status_list"), t.get("sg_status_list"))
+    return {"tracker": "shotgrid", "project": {"name": (proj or {}).get("name"), "id": project_id},
+            "counts": {"sequences": len(seqs), "assets": len(assets), "shots": len(shots), "tasks": len(tasks)},
+            "shots": sm, "assets": {a["code"]: {"thumbnail": bool(a.get("image"))} for a in assets}}
+
+
 def download_thumbnail(entity_type: str, entity_id: int, field: str = "image",
                        path: str | None = None) -> dict:
     """Download an entity's thumbnail/filmstrip image to a local file. Returns the saved path.
@@ -315,7 +340,7 @@ def upload(entity_type: str, entity_id: int, path: str, field_name: str | None =
 # ---- register every function above as an MCP tool -----------------------------------------
 for _fn in (find, find_one, create, update, delete, revive, batch,
             schema_entity_read, schema_field_read, summarize, text_search,
-            whoami, find_projects, download_thumbnail, upload):
+            whoami, find_projects, project_summary, download_thumbnail, upload):
     mcp.tool(_fn)
 
 
