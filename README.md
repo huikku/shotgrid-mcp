@@ -115,17 +115,17 @@ summarize("Task", [["project","is",{"type":"Project","id":85}]],
 create("Shot", {"project":{"type":"Project","id":85}, "code":"sh010"}, dry_run=True)
 ```
 
-## Part of a tracker-MCP trio — migrate projects between platforms
-This is one of **three sibling tracker MCPs**, each with the same shape (generic CRUD + schema + typed
+## Part of a tracker-MCP quartet — migrate projects between platforms
+This is one of **four sibling tracker MCPs**, each with the same shape (generic CRUD + schema + typed
 convenience, with a `dry_run` gate): [`shotgrid-mcp`](https://github.com/huikku/shotgrid-mcp) (this repo),
 [`ftrack-mcp`](https://github.com/huikku/ftrack-mcp), and
-[`kitsu-mcp`](https://github.com/huikku/kitsu-mcp). They all speak the same production model
+[`kitsu-mcp`](https://github.com/huikku/kitsu-mcp), and [`ayon-mcp`](https://github.com/huikku/ayon-mcp). They all speak the same production model
 (Project → Sequence/Asset → Shot → Task → Version/Status), so **an agent with two of them loaded can migrate
 a project from one tracker to another** — read the structure from the source MCP, recreate it via the
 target's `create`/`new_*` tools, no bespoke migration script. This trio grew out of copying one project
 across all three platforms.
 
-📊 **See [`COMPARISON.md`](COMPARISON.md)** for a side-by-side of the three trackers (data model, status
+📊 **See [`COMPARISON.md`](COMPARISON.md)** for a side-by-side of the four trackers (data model, status
 vocabularies) and the **migration incompatibilities** to know about (e.g. casting can't round-trip through
 ftrack; statuses must be mapped; media/notes/custom fields don't carry yet).
 
